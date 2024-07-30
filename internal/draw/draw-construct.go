@@ -7,83 +7,101 @@ import (
 	"net/http"
 )
 
-func DrawItemConstruct(item *model.Item, w http.ResponseWriter) {
+// plotset defines plot metadata data as float64 x,y coordinates
+//type plotset struct {
+//	x      int
+//	y      int
+//	width  int
+//	height int
+//}
+//
+//var (
+//	ps = plotset{0, 0, 100, 50}
+//)
+
+const (
+	width           = 1200
+	height          = 1000
+	rectangleWidth  = 100
+	rectangleHeight = 60
+	rectangleBorder = 10
+	baHeightLevel   = 200
+	skHeightLevel   = 450
+	eaHeightLevel   = 700
+	canvasTitle     = "Article Construct"
+	inactiveStyle   = "stroke:#a1a1a1;stroke-width:3;fill:#b3b2b2"
+	baStyle         = "stroke:#68A328;stroke-width:3;fill:#73B72D"
+	style           = "stroke:#6FA4EF;stroke-width:3;fill:#97C2FC"
+	baLinestyle     = "stroke:#73B72D;stroke-width:2"
+	linestyle       = "stroke:#97C2FC;stroke-width:2"
+	textfmt         = "text-anchor:middle;font-size:12px;fill:black"
+	linkText        = "IAN %s \nNAN %s"
+)
+
+func DrawItemConstruct(item *model.Item, country string, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "image/svg+xml")
 
-	fmt.Printf("Item is %s\n", item)
-	fmt.Print(item)
-
-	width := 1200
-	height := 1000
 	canvas := svg.New(w)
 	canvas.Start(width, height)
-	canvas.Title("Article Construct")
+	canvas.Title(canvasTitle)
 
-	numOfVariants := totalUniqueVariantsIan(item)
-	fmt.Println(numOfVariants)
 	numOfCases := len(item.Cases)
+	numOfVariants := totalUniqueVariantsIan(item)
 
-	columnWidthLevel3 := width / numOfVariants
-	columnWidthLevel2 := width / numOfCases
-	columnWidthLevel1 := width / 2
-	columnHeightLevel1 := 200
-	columnHeightLevel2 := 450
-	columnHeightLevel3 := 700
+	baWidthLevel := (width - 100) / 2
+	skWidthLevel := (width - 100) / numOfCases
+	eaWidthLevel := (width - 100) / numOfVariants
 
-	canvas.Link("http://localhost:8181/item?ian="+item.Ian, item.Ian)
-	canvas.Roundrect(columnWidthLevel1, columnHeightLevel1, 100, 50, 10, 10, "stroke:#68A328;stroke-width:3;fill:#73B72D")
-	canvas.Text(columnWidthLevel1+50, columnHeightLevel1+25, item.Ian, "text-anchor:middle;font-size:12px;fill:black")
+	canvas.Link(fmt.Sprintf("http://localhost:8181/item?ian=%s&amp;country=%s", item.Ian, country), getLinkText(item.Ian, item.Nat))
+	canvas.Roundrect(baWidthLevel, baHeightLevel, rectangleWidth, rectangleHeight, rectangleBorder, rectangleBorder, nodeBAStyle(item.ItemStatus))
+	canvas.Text(baWidthLevel+rectangleWidth/2, baHeightLevel+rectangleHeight/2, item.Ian, textfmt)
+	if len(item.Nat) != 0 {
+		canvas.Text(baWidthLevel+rectangleWidth/2, baHeightLevel+rectangleHeight/2+10, "NAN "+item.Nat, textfmt)
+	}
 	canvas.LinkEnd()
 
-	caseWidth := columnWidthLevel2 / 2
-	variantWidth := columnWidthLevel3 / 2
+	skWidthCounter := skWidthLevel / 2
+	eaWidthCounter := eaWidthLevel / 2
+
 	variantsDrawn := make(map[string]int)
 
-	rectangleWidth := 100
-	if caseWidth < 100 {
-		rectangleWidth = caseWidth
-	}
-	rectangleWidthV := 100
-	if variantWidth < 100 {
-		rectangleWidthV = variantWidth
-	}
 	for i := 0; i < len(item.Cases); i++ {
-
-		canvas.Line(columnWidthLevel1+50, columnHeightLevel1+50, caseWidth+rectangleWidth/2, columnHeightLevel2, "stroke:#73B72D;stroke-width:2")
-		canvas.Link("http://localhost:8181/case?ian="+item.Cases[i].Ian, item.Cases[i].Ian)
-
-		canvas.Roundrect(caseWidth, columnHeightLevel2, rectangleWidth, 50, 10, 10, "stroke:#6FA4EF;stroke-width:3;fill:#97C2FC")
-		canvas.Text(caseWidth+rectangleWidth/2, columnHeightLevel2+25, item.Cases[i].Ian, "text-anchor:middle;font-size:12px;fill:black")
+		c := item.Cases[i]
+		canvas.Line(baWidthLevel+rectangleWidth/2, baHeightLevel+rectangleHeight, skWidthCounter+rectangleWidth/2, skHeightLevel, baLinestyle)
+		canvas.Link(fmt.Sprintf("http://localhost:8181/case?ian=%s&amp;country=%s", c.Ian, country), getLinkText(c.Ian, c.Nat))
+		canvas.Roundrect(skWidthCounter, skHeightLevel, rectangleWidth, rectangleHeight, rectangleBorder, rectangleBorder, nodeStyle(c.ItemStatus))
+		canvas.Text(skWidthCounter+rectangleWidth/2, skHeightLevel+rectangleHeight/2, c.Ian, textfmt)
+		if len(c.Nat) != 0 {
+			canvas.Text(skWidthCounter+rectangleWidth/2, skHeightLevel+rectangleHeight/2+10, "NAN "+c.Nat, textfmt)
+		}
 		canvas.LinkEnd()
-		variants := item.Cases[i].Variants
+		variants := c.Variants
 
 		for _, variant := range variants {
-
 			if val, found := variantsDrawn[variant.Ian]; found {
-				canvas.Line(caseWidth+50, columnHeightLevel2+50, val, columnHeightLevel3, "stroke:#97C2FC;stroke-width:2")
+				canvas.Line(skWidthCounter+rectangleWidth/2, skHeightLevel+rectangleHeight, val, eaHeightLevel, linestyle)
 			} else {
-				canvas.Line(caseWidth+50, columnHeightLevel2+50, variantWidth+rectangleWidthV/2, columnHeightLevel3, "stroke:#97C2FC;stroke-width:2")
-				canvas.Link("http://localhost:8181/variant?ian="+variant.Ian, variant.Ian)
-				canvas.Roundrect(variantWidth, columnHeightLevel3, rectangleWidthV, 50, 10, 10, "stroke:#6FA4EF;stroke-width:3;fill:#97C2FC")
-				canvas.Text(variantWidth+rectangleWidthV/2, columnHeightLevel3+25, variant.Ian, "text-anchor:middle;font-size:12px;fill:black")
+				canvas.Line(skWidthCounter+rectangleWidth/2, skHeightLevel+rectangleHeight, eaWidthCounter+rectangleWidth/2, eaHeightLevel, linestyle)
+				canvas.Link(fmt.Sprintf("http://localhost:8181/variant?ian=%s&amp;country=%s", variant.Ian, country), getLinkText(variant.Ian, variant.Nat))
+				canvas.Roundrect(eaWidthCounter, eaHeightLevel, rectangleWidth, rectangleHeight, rectangleBorder, rectangleBorder, nodeStyle(variant.ItemStatus))
+				canvas.Text(eaWidthCounter+rectangleWidth/2, eaHeightLevel+rectangleHeight/2, variant.Ian, textfmt)
+				if len(variant.Nat) != 0 {
+					canvas.Text(eaWidthCounter+rectangleWidth/2, eaHeightLevel+rectangleHeight/2+10, "NAN "+variant.Nat, textfmt)
+				}
 				canvas.LinkEnd()
-				variantsDrawn[variant.Ian] = variantWidth + rectangleWidthV/2
-				variantWidth = variantWidth + columnWidthLevel3
+				variantsDrawn[variant.Ian] = eaWidthCounter + rectangleWidth/2
+				eaWidthCounter = eaWidthCounter + eaWidthLevel
 			}
 
 		}
-		caseWidth = caseWidth + columnWidthLevel2
+		skWidthCounter = skWidthCounter + skWidthLevel
 	}
 	canvas.End()
 }
 
 func totalUniqueVariantsIan(item *model.Item) int {
 	keys := make(map[string]bool)
-	list := []string{}
-
-	// If the key(values of the slice) is not equal
-	// to the already present value in new slice (list)
-	// then we append it. else we jump on another element.
+	var list []string
 	for i := 0; i < len(item.Cases); i++ {
 		for _, entry := range item.Cases[i].Variants {
 			if _, value := keys[entry.Ian]; !value {
@@ -93,4 +111,26 @@ func totalUniqueVariantsIan(item *model.Item) int {
 		}
 	}
 	return len(list)
+}
+
+func nodeStyle(status string) string {
+	if status == "inactive" {
+		return inactiveStyle
+	}
+	return style
+}
+
+func nodeBAStyle(status string) string {
+	if status == "inactive" {
+		return inactiveStyle
+	}
+	return baStyle
+}
+
+func getLinkText(ian string, nat string) string {
+	if len(nat) != 0 {
+		return fmt.Sprintf(linkText, ian, nat)
+	}
+
+	return "IAN " + ian
 }

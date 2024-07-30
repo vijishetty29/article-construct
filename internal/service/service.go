@@ -3,7 +3,7 @@ package service
 import (
 	"encoding/json"
 	drawConstruct "github.com/user/article-construct-demo/internal/draw"
-	"github.com/user/article-construct-demo/internal/model"
+	"github.com/user/article-construct-demo/internal/dto"
 	"github.com/user/article-construct-demo/internal/repository"
 	"log"
 	"net/http"
@@ -21,11 +21,11 @@ type constructHandler struct {
 
 func (c constructHandler) GetItemForIan(w http.ResponseWriter, req *http.Request) {
 	ian := req.URL.Query().Get("ian")
-	var item *model.Item
+	var item *dto.ItemDto
 
 	//request on repository
 	if result, err := c.repo.GetItemForIan(ian, req.Context()); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	} else {
 		item = result
 	}
@@ -36,11 +36,11 @@ func (c constructHandler) GetItemForIan(w http.ResponseWriter, req *http.Request
 
 func (c constructHandler) GetCaseForIan(w http.ResponseWriter, req *http.Request) {
 	ian := req.URL.Query().Get("ian")
-	var sk *model.Case
+	var sk *dto.CaseDto
 
 	//request on repository
 	if result, err := c.repo.GetCaseForIan(ian, req.Context()); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	} else {
 		sk = result
 	}
@@ -51,11 +51,11 @@ func (c constructHandler) GetCaseForIan(w http.ResponseWriter, req *http.Request
 
 func (c constructHandler) GetVariantForIan(w http.ResponseWriter, req *http.Request) {
 	ian := req.URL.Query().Get("ian")
-	var ea *model.Variant
+	var ea *dto.VariantDto
 
 	//request on repository
 	if result, err := c.repo.GetVariantForIan(ian, req.Context()); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	} else {
 		ea = result
 	}
@@ -67,16 +67,17 @@ func (c constructHandler) GetVariantForIan(w http.ResponseWriter, req *http.Requ
 func (c constructHandler) GetConstructForIan(w http.ResponseWriter, req *http.Request) {
 
 	ian := req.URL.Query().Get("ian")
-	var construct *model.Item
+	country := req.URL.Query().Get("country")
 
 	//request on repository
-	if result, err := c.repo.GetConstructForIan(ian, req.Context()); err != nil {
-		log.Fatal(err)
+	if result, err := c.repo.GetConstructForIan(ian, country, req.Context()); err != nil {
+		log.Println(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode("Construct not found for IAN " + ian + " and country " + country)
 	} else {
-		construct = result
+		drawConstruct.DrawItemConstruct(result, country, w)
 	}
-
-	drawConstruct.DrawItemConstruct(construct, w)
 }
 
 func NewConstructHandler(repo repository.ConstructRepository) ConstructHandler {
